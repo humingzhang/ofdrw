@@ -1,6 +1,470 @@
 # 发布记录和特性
 
-## 进展
+## Version 1.20.1 2022-10-10 19:17:17
+
+> Alias: Ougonkyou
+
+新增：
+
+- 文档内容替换支持CGTransform类型文字内容替换。
+
+
+## Version 1.20.0 2022-9-27 23:04:31
+
+> Alias: OVERLORD IV
+
+新增：
+
+- `DocContentReplace` 实现文档内容替换。
+- `Paragraph`段落支持对已经添加到段落中的文字统一设置字体。
+- `ContentExtractor`支持了OFD TextObject的提取，用于支持文本替换。
+
+修复：
+
+- `Span` 在内容不足1时导致的OOR。
+
+
+
+## Version 1.19.1 2022-8-22 20:54:52
+
+> Alias: KuroNoShoukanshi
+
+新增：
+
+- `OFDReader`新增获取所有附件的方法`getAttachmentList()`
+- OFD转换PDF时，附件也将复制到PDF中。
+
+## Version 1.19.0 2022-8-16 21:50:33
+
+> Alias: OVERLORD Ⅳ
+
+修复：
+
+- OFD转换PDF转换后的线条与实际不符的问题。
+
+新增：
+
+- `Div`元素支持设置图层，使用`Div#setLayer`方法。
+  - 测试用例见 [OFDDocTest.java](ofdrw-layout/src/test/java/org/ofdrw/layout/OFDDocTest.java) 的 `vPageLayerTest` 用例。
+- `VirtualPage` 虚拟页面支持添加模板，使用`VirtualPage#addTemplate`方法。
+  - 测试用例见 [DocEditDemos.java](ofdrw-layout/src/test/java/org/ofdrw/layout/DocEditDemos.java) 的 `vPageUseTemplateTest` 用例。
+
+## Version 1.18.2 2022-7-20 19:58:24
+
+> Alias: Summer Time Rendering
+
+修复：
+
+- 增加了命名空间兼容模式的设置开关`OFDReader#setNamespaceStrictMode` 或 `OFDElement.NSStrictMode`设置。
+  - `true`：使用严格模式，只解析带有`<ofd:>`命名空间的元素。
+  - `false`：默认值，兼容模式只要元素名称相同就当做OFD元素解析。
+
+新增：
+
+- OFDReader简化了用于获取页面尺寸的方法，`ST_Box getPageSize(int num)`。
+
+
+## Version 1.18.1 2022-7-13 22:01:44
+
+> Alias: Tomodachi Game
+
+修复：
+
+- 兼容了非标准命名空间的元素的获取。
+
+## Version 1.18.0 2022-6-24 23:23:08
+
+> Alias: Hanlu
+
+新增：
+
+- 增加用兼容CMS格式的GBT35275签名容器，`GBT35275PKCS9DSContainer`，数字签名可通过数科验证。
+
+修复：
+
+- 出于兼容性考虑，签名ID默认构造采用不含前缀0的数字表示，开发者可以通过实现`SignIDProvider`自定义签名ID。
+- 兼容了CMS格式的GBT35275签名。
+
+## Version 1.17.19 2022-6-20 18:40:10
+
+> Alias: Qiufen
+
+修复：
+
+- 兼容了错误Tag的绘制参数。
+- 兼容了ImageObject对象没有ResourceID导致NPE。
+
+## Version 1.17.18 2022-5-20 21:55:20
+
+> Alias: Bailu
+
+修复：
+
+- 资源加载加载资源路径错误导致转换失败问题。
+
+
+## Version 1.17.17 2022-5-16 23:09:40
+
+> Alias: Chushu
+
+修复：
+
+- 重复添加水印异常问题。
+
+## Version 1.17.16 2022-5-10 20:37:59
+
+> Alias: Liqiu
+
+修复：
+
+- 文件占用 reader无法关闭。
+- 修复XML4j XXE漏洞。
+- 编辑时虚拟页面Content NPE问题。
+- 移除log4j配置文件。
+
+## Version 1.17.15 2022-4-24 20:26:52
+
+> Alias: Dashu
+
+修复：
+
+- 解析文字空页面NPE问题
+
+## Version 1.17.14 2022-4-7 20:48:40
+
+> Alias: XiaoShu
+
+修复：
+
+- 文档合并异常。 
+
+## Version 1.17.13 2022-3-21 22:37:18
+
+> Alias: XiaZhi
+
+- GBT35275 格式签名和验签问题修复：
+  - 修复了GB35275格式签名生成和解析的结构解析错误。
+  - 兼容了文件Hash的BASE64格式编码作为签名原文，增加了`GBT35275DSContainer#setEnableFileHashBase64`开关来切换是否对文件Hash进行Base64编码。
+
+## Version 1.17.12 2022-3-14 22:14:35
+
+> Alias: MangZhong
+
+- 修复图元参数错误的默认值标注
+
+
+## Version 1.17.11 2022-3-4 22:01:54
+
+> Alias: XiaoMan
+
+修复：
+
+- 转换时颜色参数复制导致异常。
+- 修复javax Holder兼容问题。
+- 关键自定位，修复sun包在高版本JDK NOT FOUND问题
+- 关键自定位，添加了 [高亮测试用例](./ofdrw-layout/src/test/java/org/ofdrw/layout/highlight/TestHighlight.java)，用于观察定位参数。
+- 修复了竖排字体关键自定位区域错误的问题。
+
+## Version 1.17.10 2022-3-1 20:40:00
+
+> Alias: LiXia
+
+修复：
+
+- 解决了部分OFD无法解压问题。
+- 修复了图片转换字符重叠问题。
+- 升级zip4j。
+- 调整了系统字体加载日志等级。
+
+
+## Version 1.17.9 2022-2-17 19:43:27
+
+> Alias: Guyu
+
+修复：
+
+- 修复了资源加载exist 路径拼接错误问题。
+- 隐藏了OFD接口非法时，加载不到文件的错误消息。
+
+新增：
+
+- 增加了可配置文件解压大小限制。
+
+## Version 1.17.8 2022-1-13 20:51:55
+
+> Alias: Qingming
+
+修复：
+
+- 修复某些精心构造的ZIP文件导致的解压文件特别巨大。
+
+## Version 1.17.7 2022-1-10 21:21:35
+
+> Alias: Chunfen
+
+修复：
+
+- 合并文件资源复制异常造成的乱码。
+- 修复通用转换接口内部没有关闭流造成的，文件占用问题。
+- 修复了转换模块字体加载后缀名大小写兼容问题。
+
+## Version 1.17.6 2021-12-22 22:04:25
+
+> Alias：Jingzhe
+
+修复：
+
+- 添加水印时导致页面内容消失问题。
+
+## Version 1.17.5 2021-12-19 18:17:26
+
+> Alias: Yushui
+
+修复：
+
+- 修复了添加水印时，由于程序解析Annots目录错误导致的EPE问题。
+- 修复了GBT35275验证容器逻辑判断错误问题。
+
+## Version 1.17.4 2021-12-15 19:13:53
+
+> Alias：Lichun
+
+修复：
+
+- v4电子印章解析遗漏的return语句导致的NPE
+
+## Version 1.17.3 2021-12-14 18:38:24
+
+> Alias：Dahan
+
+修复：
+
+- CVE-2021-44228 log4j漏洞
+
+## Version 1.17.2 2021-12-4 18:05:38
+
+> Alias: Xiaohan
+
+兼容：
+
+- 兼容标的电子印章数据字段
+
+
+## Version 1.17.1 2021-11-24 21:18:40
+
+> Alias: Dongzhi
+
+修复：
+
+- 电子印章解析兼容而外长度出现。
+- 合并`ofdrw-tool`到`ofdrw-full`中便于引入。 
+
+## Version 1.17.0 2021-11-14 22:53:35
+
+> Alias: Daxue
+
+新增：
+
+- 增加文档操作工具模块[ofdrw-tool](./ofdrw-tool)
+  - 文档合并功能，见 [测试用用例](./ofdrw-tool/src/test/java/org/ofdrw/tool/merge/OFDMergerTest.java)
+
+修复：
+
+- 外部字体复制BUG。
+
+## Version 1.16.0 2021-10-15 20:42:17
+
+> Alias: Xiaoxue
+
+- 图片转换字体绘制部分逻辑，解决大部分图片转换乱码问题。
+  - 文字绘制逻辑优化。
+  - 兼容了绘制文字中含有非法换行符的情况。
+- 重构了字体加载模块
+  - 正确理解了字形和字族的关系。
+  - 解决了Windows环境下用户安装字体的加载。
+  - 解决了CFF特殊压缩裁剪字体的解析。
+  - 解决了OTF、TTF裁剪字体的解析。
+  - 重构了字体映射和加载相关API。
+- 签名器增加了扩展额外属性的支持。
+
+## Version 1.15.6 2021-10-8 20:09:35
+
+> Alias: Lidong
+
+修复：
+
+- 修复了没有印章验章没有检查印章与电子签章数据中印章的匹配性问题。
+- 修复了core模块`CT_CommonData` 对多`PublicRes`和`DocumentRes`的支持。
+- 修复了`PublicRes.xml`和`DocumentRes.xml`可能存在多个导致的渲染乱码。
+- 对`Paragraph`的预处理`doPrepare`方法标注了额外警告说明文字。
+- 关闭了字体加载对`type14`类型字体的警告日志。
+
+新增：
+
+- 字体加载器 `FontLoader`增加了语义化的预加载方法`Preload`。 
+
+## Version 1.15.5 2021-10-3 18:14:23
+
+> Alias: shuangjiang
+
+修复：
+
+- 裁剪了PDFBox的字体模块，解决了字体无法解析的大部分问题，字解析工具见 [./ofdrw-converter/src/main/java/org/ofdrw/converter/font/README.md]
+
+## Version 1.15.4 2021-9-23 21:26:11
+
+> Alias: hanlu
+
+修复：
+
+- PDF转换对白色背景的电子印章图片进行特殊处理，扣除白色背景。
+
+## Version 1.15.3 2021-9-22 20:33:27
+
+> Alias: Qiufen
+
+修复：
+
+- 兼容了不规范OFD命名空间导致IAE问题。
+
+## Version 1.15.2 2021-9-15 20:46:07
+
+> Alias: Qiu2
+
+修复：
+
+- 对不规范OFD字体资源格式的解析NPE问题，采用默认字体替换
+- Span LineBreak无效问题
+
+新增：
+
+- 创建`OFDDoc`对象增加
+  - `#getOfdDir` 获取OFD虚拟容器。
+  - `#getOfdDocument` 获取文档根节点。
+  - `#onRenderFinish` 用于设置渲染完成的回调函数
+  - 各个方法见使用见 [测试用例](ofdrw-layout/src/test/java/org/ofdrw/layout/OFDDocTest.java) 
+    - `#onRenderFinished`
+    - `#genDocAndGetDocInfo`
+
+## Version 1.15.1 2021-9-1 20:44:57
+
+> Alias: Move On
+
+修复：
+
+- 转换OFD时，工作空间无法删除的BUG：字体加载器没有释放加载的字体文件导致。
+
+## Version 1.15.0 2021-8-25 19:54:45
+
+> Alias: Shokugeki no Soma
+
+新增：
+
+- OFD完整性协议
+  - 完整性保护 [见测试用例](ofdrw-crypto/src/test/java/org/ofdrw/crypto/integrity/OFDIntegrityTest.java)
+  - 完整性验证 [见测试用例](ofdrw-crypto/src/test/java/org/ofdrw/crypto/integrity/OFDIntegrityVerifierTest.java)
+
+
+## Version 1.14.0 2021-8-16 19:29:22
+
+> Alias: SSSS.Gridman
+
+新增：
+
+- 通过矩形区域提取文本的接口 [见测试用例](ofdrw-reader/src/test/java/org/ofdrw/reader/ContentExtractorTest.java)
+- 新增《GM/T 0099》部分实现，[见测试用例](ofdrw-crypto/src/test/java/org/ofdrw/crypto/OFDEncryptorTest.java)
+  - 口令加密OFD文件
+  - 证书加密OFD文件
+- 新增了基于 《GB/T 35275》实现的数字签名和验证的容器
+  - [签名 测试用例](ofdrw-sign/src/test/java/org/ofdrw/sign/signContainer/GBT35275DSContainerTest.java)
+  - [验签 测试用例](ofdrw-sign/src/test/java/org/ofdrw/sign/verify/container/GBT35275ValidateContainerTest.java)
+- gm模块实现了 《GB/T 35276》 相关的数据结构和构造方法。
+
+## Version 1.13.5 2021-7-27 20:21:41
+
+> Alias: Remake Our Life
+
+新增：
+
+- 兼容了而非标准的历史命名空间，文件在被修改后自动升级命名空间。
+  - 修复了由于命名空间问题导致的签名无法被识别的问题。
+  
+## Version 1.13.4 2021-7-22 20:17:35
+
+> Alias: EDENS ZERO
+
+修复：
+
+- 编辑文档时，设置 背景、边框无效的问题：路径数据clone时丢失信息
+- 向虚拟页面页面追加内容时NPE的问题：add时主动进行预处理取得元素高度。
+- ST_Box、ST_Array 写入数字时，对于小数保留两位小数（四舍五入）减少无意义的精度。
+
+
+## Version 1.13.3 2021-7-14 18:37:47
+
+> Alias: Cat's Eye
+
+修复：
+
+- 修复不规范的OFD路径操作符合操作数，造成无法转换PDF、图片的问题。
+
+## Version 1.13.2 2021-7-6 19:55:36
+
+> Alias: So I'm a Spider, So What?
+
+修复：
+
+- 修复了jar包内嵌字体无法加载导致NPE
+
+
+## Version 1.13.1 2021-7-5 19:37:24
+
+> Alias: ODD TAXI
+
+新增:
+
+- 段落布局增加了行内的文字浮动方向配置
+  - [测试用例](./ofdrw-layout/src/test/java/org/ofdrw/layout/ParagraphLayoutDemo.java)
+
+## Version 1.13.0 2021-6-30 18:49:52
+
+> Alias: Back arrow
+
+修复：
+
+- 资源加载器对路径是否存在的BUG，导致的转换PDF无印章情况。
+- 修复从OFDDoc获取Layout给页面赋值并配置时候配置无效的问题。
+
+新增：
+
+- 《GB/T 32918》 中描述的密钥派生函数 KDF
+- 《GM/T 0099-2020》:
+  - 标准中提及的所有数据结构：加解密、签名、防止夹带。
+  - 增加了 OFD 2.0 中规定的各类目录结构，如：模板目录（Temps）、注释目录（Annots）。
+- 调整的注释生成的存放位置为专用的`Annots`目录。
+
+## Version 1.12.1 2021-6-16 19:03:54
+
+> Alias: Your Lie in April
+
+修复：
+
+- 文件转换过程中由于印章解析异常导致NPE。
+- 升级PDFBox防止可能发生OOM攻击BUG。
+
+
+## Version 1.12.0 2021-6-11 20:06:55
+
+> Alias: Sword Art Online
+
+修复：
+
+- 转换PDF对路径对象解析越界问题。
+
+新增：
+
+- 流式布局的页面插入功能
+    - 见测试用例 [DocEditDemos#streamInsertTest](./ofdrw-layout/src/test/java/org/ofdrw/layout/DocEditDemos.java)
 
 ## Version 1.11.2 2021-6-10 19:11:42
 
@@ -485,22 +949,22 @@
 
 - 简化了`ofdrw-font`字体库以及相关API，移除了内嵌的几个noto字体，减少库体积。
 
-### Version 1.5.3 2020-8-24 21:02:49
+## Version 1.5.3 2020-8-24 21:02:49
 
 - OFDSigner 可以使用自己构造的签名ID提供器，而不是标准推荐的 "s'NNN'"格式
     
     需要手动实现 `org.ofdrw.sign.SignIDProvider`接口
 
-### Version 1.5.2 2020-6-20 10:04:37
+## Version 1.5.2 2020-6-20 10:04:37
 
 - 修复了注释对象参数无法添加多个的问题。
 
-### Version 1.5.1 2020-6-6 11:06:28
+## Version 1.5.1 2020-6-6 11:06:28
 
 - CVE-2020-10683 dom4j库可能造成XXE 攻击，升级该库至2.1.3。
 - 增加了替换附件的功能。
 
-### Version 1.5.0 2020-5-19 20:45:50
+## Version 1.5.0 2020-5-19 20:45:50
 
 - 首页加入了免责声明，以及咨询入口。
 - 修复了电子印章为非必选参数，签章容器不设置电子印章就无法进行签章操作的问题。
@@ -519,7 +983,7 @@ Canvas 测试用例见 [DrawContextTest](./ofdrw-layout/src/test/java/org/ofdrw/
 
 签章测试用用例见 [NoSealSignTest](./ofdrw-sign/src/test/java/org/ofdrw/sign/signContainer/NoSealSignTest.java)
 
-### Old
+## Old
 
 - *2020-05-15* 完成OFD的注释功能
 

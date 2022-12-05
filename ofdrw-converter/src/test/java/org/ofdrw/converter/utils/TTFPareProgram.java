@@ -2,6 +2,7 @@ package org.ofdrw.converter.utils;
 
 import org.apache.fontbox.cff.CFFFont;
 import org.apache.fontbox.cff.CFFParser;
+import org.apache.fontbox.type1.Type1Font;
 import org.junit.jupiter.api.Test;
 
 
@@ -21,14 +22,27 @@ import java.util.Map;
  */
 public class TTFPareProgram {
     @Test
-    public  void testParse() throws IOException {
+    public void type1() throws Exception {
+        final Path path = Paths.get("C:\\Users\\pc\\Desktop\\font_300_300.otf");
+        final byte[] bytes = Files.readAllBytes(path);
+        final Type1Font font = Type1Font.createWithPFB(bytes);
 
-        final Path path = Paths.get("src/test/resources/font_13132_0_edit.ttf");
+    }
+
+
+    @Test
+    public  void testParse() throws IOException {
+//        final Path path = Paths.get("C:\\Users\\pc\\AppData\\Local\\Microsoft\\Windows\\Fonts\\Deleted\\NotoSerifCJKsc-Regular.otf");
+        final Path path = Paths.get("C:\\Users\\pc\\Desktop\\font_300_300.otf");
         try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r")) {
             // Version: 4 byte
-            int v1 = raf.readUnsignedShort();
-            int v2 = raf.readUnsignedShort();
-            System.out.printf("Version: %02X %02X\n", v1, v2);
+            byte[] v = new byte[4];
+            v[0] = raf.readByte();
+            v[1] = raf.readByte();
+            v[2] = raf.readByte();
+            v[3] = raf.readByte();
+
+            System.out.printf("Version: %02X %02X %02X %02X\n", v[0],v[1],v[2],v[3]);
             // Number of Tables: 2 byte
             int numberOfTables = raf.readUnsignedShort();
             System.out.printf("Number of Tables: %d\n", numberOfTables);
@@ -54,34 +68,36 @@ public class TTFPareProgram {
                 tables.put(tag, new int[]{offset, length});
             }
 
-            final int[] maxpsArr = tables.get("maxp");
-            raf.seek(maxpsArr[0]);
-            int maxpVersion = raf.readInt();
-            int numGlyphs = raf.readUnsignedShort();
-            System.out.printf("maxp Version: 0x%08X Number of glyphs: %d \n", maxpVersion, numGlyphs);
 
-            final int[] headArr = tables.get("head");
-            raf.seek(headArr[0] + 50);
-            // 0 for short offsets (Offset16), 1 for long (Offset32).
-            final int indexToLocFormat = raf.readUnsignedShort();
-            System.out.printf("IndexToLocFormat: %s (%d)\n", (indexToLocFormat == 0) ? "Offset16" : "Offset32", indexToLocFormat);
 
-            // IndexToLocFormat: 0 for short offsets (Offset16), 1 for long (Offset32).
-            // [offset | len] [offset | len] [offset | len] ...
-            final int[] locaArr = tables.get("loca");
-            System.out.println(locaArr[0]);
-            raf.seek(locaArr[0]);
-
-            long[] fontOffsetArr = new long[numGlyphs + 1];
-            for (int i = 0; i < numGlyphs + 1; i++) {
-                if (indexToLocFormat == 1) {
-                    fontOffsetArr[i] = raf.readInt();
-                } else {
-                    fontOffsetArr[i] = raf.readUnsignedShort() * 2L;
-                }
-                System.out.printf("[%d]%d, %s", i, fontOffsetArr[i], i % 4 == 0 ? "\n" : "");
-
-            }
+//            final int[] maxpsArr = tables.get("maxp");
+//            raf.seek(maxpsArr[0]);
+//            int maxpVersion = raf.readInt();
+//            int numGlyphs = raf.readUnsignedShort();
+//            System.out.printf("maxp Version: 0x%08X Number of glyphs: %d \n", maxpVersion, numGlyphs);
+//
+//            final int[] headArr = tables.get("head");
+//            raf.seek(headArr[0] + 50);
+//            // 0 for short offsets (Offset16), 1 for long (Offset32).
+//            final int indexToLocFormat = raf.readUnsignedShort();
+//            System.out.printf("IndexToLocFormat: %s (%d)\n", (indexToLocFormat == 0) ? "Offset16" : "Offset32", indexToLocFormat);
+//
+//            // IndexToLocFormat: 0 for short offsets (Offset16), 1 for long (Offset32).
+//            // [offset | len] [offset | len] [offset | len] ...
+//            final int[] locaArr = tables.get("loca");
+//            System.out.println(locaArr[0]);
+//            raf.seek(locaArr[0]);
+//
+//            long[] fontOffsetArr = new long[numGlyphs + 1];
+//            for (int i = 0; i < numGlyphs + 1; i++) {
+//                if (indexToLocFormat == 1) {
+//                    fontOffsetArr[i] = raf.readInt();
+//                } else {
+//                    fontOffsetArr[i] = raf.readUnsignedShort() * 2L;
+//                }
+//                System.out.printf("[%d]%d, %s", i, fontOffsetArr[i], i % 4 == 0 ? "\n" : "");
+//
+//            }
         }
     }
     @Test

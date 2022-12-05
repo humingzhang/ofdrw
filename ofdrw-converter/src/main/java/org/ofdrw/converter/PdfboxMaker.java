@@ -45,6 +45,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.List;
 
@@ -475,7 +476,11 @@ public class PdfboxMaker {
 
     private void writeImage(ResourceManage resMgt, PDPageContentStream contentStream, ST_Box box, ImageObject imageObject, ST_Box annotBox) throws IOException {
         // 读取图片
-        BufferedImage bufferedImage = resMgt.getImage(imageObject.getResourceID().toString());
+        final ST_RefID resourceID = imageObject.getResourceID();
+        if (resourceID == null) {
+            return;
+        }
+        BufferedImage bufferedImage = resMgt.getImage(resourceID.toString());
         if (bufferedImage == null) {
             return;
         }
@@ -600,12 +605,8 @@ public class PdfboxMaker {
         PDFont font;
         try {
             // 加载字体
-            TrueTypeFont typeFont = FontLoader.getInstance().loadFont(reader.getResourceLocator(), ctFont);
-            if (typeFont != null) {
-                font = PDType0Font.load(pdf, typeFont, true);
-            } else {
-                font = DEFAULT_FONT;
-            }
+            final InputStream in = FontLoader.getInstance().loadFontSimilarStream(reader.getResourceLocator(), ctFont);
+            font = PDType0Font.load(pdf, in, true);
         } catch (Exception e) {
             logger.info("无法使用字体: {} {} {}", ctFont.getFamilyName(), ctFont.getFontName(), ctFont.getFontFile().toString());
             font = DEFAULT_FONT;

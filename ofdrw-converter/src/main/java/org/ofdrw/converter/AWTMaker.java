@@ -1,13 +1,14 @@
 package org.ofdrw.converter;
 
-import org.apache.fontbox.ttf.GlyphData;
-import org.apache.fontbox.ttf.TrueTypeFont;
 import org.apache.pdfbox.pdmodel.graphics.blend.BlendComposite;
 import org.apache.pdfbox.pdmodel.graphics.blend.BlendMode;
 import org.ofdrw.converter.font.FontWrapper;
+import org.ofdrw.converter.font.GlyphData;
+import org.ofdrw.converter.font.TrueTypeFont;
 import org.ofdrw.converter.point.Tuple2;
 import org.ofdrw.converter.utils.CommonUtil;
 import org.ofdrw.converter.utils.MatrixUtils;
+import org.ofdrw.converter.utils.StringUtils;
 import org.ofdrw.core.annotation.pageannot.Annot;
 import org.ofdrw.core.annotation.pageannot.Appearance;
 import org.ofdrw.core.basicStructure.pageObj.layer.CT_Layer;
@@ -17,6 +18,8 @@ import org.ofdrw.core.basicType.ST_Array;
 import org.ofdrw.core.basicType.ST_Box;
 import org.ofdrw.core.basicType.ST_RefID;
 import org.ofdrw.core.compositeObj.CT_VectorG;
+import org.ofdrw.core.graph.pathObj.AbbreviatedData;
+import org.ofdrw.core.graph.pathObj.OptVal;
 import org.ofdrw.core.pageDescription.CT_GraphicUnit;
 import org.ofdrw.core.pageDescription.color.color.CT_Color;
 import org.ofdrw.core.pageDescription.color.colorSpace.CT_ColorSpace;
@@ -39,14 +42,13 @@ import org.ujmp.core.Matrix;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.GeneralPath;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * AWT设备转换类
@@ -76,7 +78,7 @@ public abstract class AWTMaker {
     protected boolean isStamp = false;
 
 
-    protected List<PageInfo> pages = null;
+    protected List<PageInfo> pages;
 
     private final ResourceManage resourceManage;
     /**
@@ -367,12 +369,15 @@ public abstract class AWTMaker {
         ST_Box boundary = imageObject.getBoundary();
         Matrix baseMatrix = renderBoundaryAndSetClip(graphics, boundary, parentMatrix);
 
-        BufferedImage image = null;
+        BufferedImage image;
         try {
             // 解析图片对象获取图片
             image = resourceManage.getImage(imageObject);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+        if (image == null) {
+            return;
         }
         Matrix m = MatrixUtils.base();
         // 把图片还原成1*1
@@ -402,7 +407,7 @@ public abstract class AWTMaker {
 
     private void writeText(Graphics2D graphics, TextObject textObject, List<CT_DrawParam> drawParams, Matrix parentMatrix) {
         logger.debug("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━TextObject━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
-
+        final Double fontSize = textObject.getSize();
         Color strokeColor = getStrokeColor(textObject.getStrokeColor(), null, drawParams);
         Color fillColor = getFillColor(textObject.getFillColor(), null, drawParams);
         if (fillColor == null) fillColor = Color.black;
@@ -410,117 +415,151 @@ public abstract class AWTMaker {
         ST_Box boundary = textObject.getBoundary();
         Matrix baseMatrix = renderBoundaryAndSetClip(graphics, boundary, parentMatrix);
 
-        BasicStroke basicStroke = new BasicStroke(getLineWidth(textObject, drawParams).floatValue()*15,0,0);
+        BasicStroke basicStroke = new BasicStroke(getLineWidth(textObject, drawParams).floatValue() * 15, 0, 0);
         graphics.setStroke(basicStroke);
 
         // 读取字体
         FontWrapper<TrueTypeFont> fontWrapper = getFont(textObject);
-        TrueTypeFont typeFont =fontWrapper.getFont();
+        TrueTypeFont typeFont = fontWrapper.getFont();
         List<Number> fontMatrix = null;
 
         if (typeFont == null) {
             logger.info("无法加载字体ID：" + textObject.getFont());
-//            typeFont = FontLoader.getInstance().loadDefaultFont();
-            return;
+            typeFont = FontLoader.getInstance().loadDefaultFont();
         } else {
             try {
-//                logger.debug("字体名：" + typeFont.getName());
-//                logger.debug("字体表：" + typeFont.getTables().stream().map(ttfTable -> ttfTable.getTag() + " ").collect(Collectors.joining()));
                 fontMatrix = typeFont.getFontMatrix();
             } catch (Exception e) {
                 logger.warn("解析加载异常", e);
             }
         }
 
-        List<CT_CGTransform> transforms = textObject.getCGTransforms();
-        int globalPoint = 0; // 字符计数，用来比较是否跟某个Transforms起始点重合
-        int transPoint = -1; // 下一个Transforms，-1表示不存在
-        if (transforms != null && transforms.size() >= 1) {
-            transPoint = 0;
-            transforms.forEach(transform -> {
-                if (transform.getCodePosition() == null) {
-                    transform.setCodePosition(0);
-                }
-            });
-            transforms.sort((t1, t2) -> {
-                return t1.getCodePosition() - t2.getCodePosition();
-            });
-        }
+        // 创建字形变换映射
+        CGTransformMap tsfMap = new CGTransformMap(textObject);
+        /*
+        字符偏移量：一个TextObject 可以含有多个TextCode，
+        多个TextCode按照顺序出现，TextCode内含有多个字符，
+        该变量用于计数，当前字符在整个TextObject中字符的偏移量。
+         */
+        int globalOffset = 0;
+        Double previousX = null;
+        Double previousY = null;
         for (TextCode textCode : textObject.getTextCodes()) {
-            int deltaOffset = -1;
-            logger.debug("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━TextCode━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
-            logger.debug("TextCode: " + textCode.getContent());
-            logger.debug("DeltaX:" + textCode.getDeltaX());
-            logger.debug("DeltaY:" + textCode.getDeltaY());
+            // 移除内容中包含的换行符
+            String content = StringUtils.removeNewline(textCode.getContent());
+            // 该TextCode 字符编码数量
+            int len = content.length();
+            // 当前正在处理的字符编码 在 该字符编码中的偏移量
+            int offset = 0;
+            // 待绘制的字形数据序列
+            List<GeneralPath> tbDrawChars = new ArrayList<>(5);
+            while (offset < len) {
+                CT_CGTransform tsfInfo = tsfMap.get(globalOffset);
+                // 不存在字形变换，使用字体cmap查找字形
+                if (tsfInfo == null) {
+                    char c = content.charAt(offset);
+                    try {
+                        // 通过字符编码获取字形
+                        GlyphData glyphData = typeFont.getUnicodeGlyph(c);
+                        tbDrawChars.add(glyphData.getPath());
+                    } catch (IOException e) {
+                        tbDrawChars.add(null);
+                        logger.debug(String.format("找不到字形 unicode: %c", c));
+                    }
+                    globalOffset++;
+                    offset++;
+                } else {
+                    // 变换关系中字符的数量
+                    int codeCount = tsfInfo.getCodeCount();
+                    // 变换关系汇总字形索引的个数
+                    int glyphCount = tsfInfo.getGlyphCount();
+                    // 获取字形索引序列，解决长度不足或过长的问题
+                    int[] glyphIndexArr = tsfInfo.getGlyphs().expectIntArr(glyphCount);
+                    /*
+                     * 本质上绘制字形时，只关心字形序列，字形序列与DeltaX或DeltaY对应，
+                     * 与字符序列无关。
+                     *
+                     * "一对一"、“多对一”、“多对多” 指的是字符和字形的映射关系，不用于绘制。
+                     * 用于处理字符偏移量。
+                     */
+                    for (int gid : glyphIndexArr) {
 
+                        try {
+                            // 通过字形索引到字体中找到字形数据
+                            GeneralPath drawPath = typeFont.getPath(gid);
+                            tbDrawChars.add(drawPath);
+                        } catch (IOException e) {
+                            tbDrawChars.add(null);
+                            logger.debug(String.format("找不到字形 gid: %s", gid));
+                        }
+                    }
+                    // 根据变换信息处理全局偏移量和局部偏移量
+                    globalOffset += codeCount;
+                    offset += codeCount;
+                }
+            }
+            /*
+             * 计算偏移量和字形相关属性绘制字形
+             *
+             * 特别的：待绘制字形序列 与 字形偏移量 一一对应
+             */
             List<Double> deltaX = parseDelta(textCode.getDeltaX());
             List<Double> deltaY = parseDelta(textCode.getDeltaY());
             Double x = textCode.getX();
-            if (x == null) x = 0.0;
-            Double y = textCode.getY();
-            if (y == null) y = 0.0;
-
-            for (int j = 0; j < textCode.getContent().length(); j++) {
-                if (transPoint == -1 || globalPoint < transforms.get(transPoint).getCodePosition() || fontWrapper.isEnableSimilarFontReplace()) {
-                    if (deltaOffset != -1) {
-                        x += (deltaX == null || deltaX.size() < 0) ? 0.0 : (deltaOffset < deltaX.size() ? deltaX.get(deltaOffset) : deltaX.get(deltaX.size() - 1));
-                        y += (deltaY == null || deltaY.size() < 0) ? 0.0 : (deltaOffset < deltaY.size() ? deltaY.get(deltaOffset) : deltaY.get(deltaY.size() - 1));
-                    }
-                    char c = textCode.getContent().charAt(j);
-                    logger.debug(String.format("编码索引 <%s> DeltaX:%s DeltaY:%s", c, x, y));
-                    try {
-                        int gid = typeFont.getUnicodeCmap().getGlyphId((int) c);
-                        typeFont.getFontMatrix();
-                        GlyphData glyphData = typeFont.getGlyph().getGlyph(gid);
-                        if (glyphData == null) {
-                            logger.debug(String.format("找不到字形 %s", c));
-                        } else {
-                            Shape shape = glyphData.getPath();
-                            logger.debug(String.format("字形Shape %s", shape));
-                            Matrix matrix = chatMatrix(textObject, x, y, textObject.getSize(), fontMatrix, baseMatrix);
-                            renderChar(graphics, shape, matrix, strokeColor, fillColor);
-                        }
-                    } catch (IOException e) {
-                        logger.warn("文字渲染异常：", e);
-                    }
-                    globalPoint++;
-                    deltaOffset++;
-                } else {
-                    CT_CGTransform transform = transforms.get(transPoint);
-                    List<String> glyphs = transform.getGlyphs().getArray();
-                    logger.debug("字形变换：" + transform);
-                    for (String glyphStr : glyphs) {
-                        Integer glyph = new Integer(glyphStr);
-                        if (deltaOffset != -1) {
-                            x += (deltaX == null || deltaX.size() < 0) ? 0.0 : (deltaOffset < deltaX.size() ? deltaX.get(deltaOffset) : deltaX.get(deltaX.size() - 1));
-                            y += (deltaY == null || deltaY.size() < 0) ? 0.0 : (deltaOffset < deltaY.size() ? deltaY.get(deltaOffset) : deltaY.get(deltaY.size() - 1));
-                        }
-                        logger.debug(String.format("字形索引 <%s> DeltaX:%s DeltaY:%s", glyph, x, y));
-                        try {
-//                            typeFont.getGlyph().getGlyphs();
-                            GlyphData glyphData = typeFont.getGlyph().getGlyph(glyph);
-                            if (glyphData != null) {
-                                Shape shape = glyphData.getPath();
-                                Matrix matrix = chatMatrix(textObject, x, y, textObject.getSize(), fontMatrix, baseMatrix);
-                                renderChar(graphics, shape, matrix, strokeColor, fillColor);
-                            }
-                        } catch (IOException e) {
-                            logger.warn("文字渲染异常：", e);
-                        }
-                        deltaOffset++;
-                    }
-                    if (transPoint + 1 >= transforms.size()) {
-                        transPoint = -1;
-                    } else {
-                        transPoint++;
-                    }
-                    globalPoint += (transform.getCodeCount() != null ? transform.getCodeCount() : glyphs.size());
-                    j += (transform.getCodeCount() != null ? transform.getCodeCount() : glyphs.size());
-                }
-
+            // 如果X或Y不出现，则采用上一个TextCode的X或Y值
+            if (x == null && previousX != null) {
+                x = previousX;
+            } else if (x == null) {
+                x = 0.0;
             }
-            logger.debug("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
-            globalPoint += textCode.getContent().length();
+            Double y = textCode.getY();
+            if (y == null && previousY != null) {
+                y = previousY;
+            } else if (y == null) {
+                y = 0.0;
+            }
+
+            for (int drawOffset = 0; drawOffset < tbDrawChars.size(); drawOffset++) {
+                // 第一个字符的X和Y就是原始的X和Y
+
+                // 字形在字符偏移量中的位置
+                int deltaOffset = drawOffset - 1;
+                if (deltaOffset >= 0) {
+                    // 非第一个字符需要添加字符偏移量
+                    if (deltaX.size() > 0) {
+                        // 计算X偏移量
+                        if (deltaOffset < deltaX.size()) {
+                            x += deltaX.get(deltaOffset);
+                        } else {
+                            // 如果deltaX 数组长度不及字符长度，使用deltaX数组的最后一个数值作为剩余字符的偏移量，防止其错位打印。
+                            x += deltaX.get(deltaX.size() - 1);
+                        }
+                    }
+                    if (deltaY.size() > 0) {
+                        // 计算Y偏移量
+                        if (deltaOffset < deltaY.size()) {
+                            y += deltaY.get(deltaOffset);
+                        } else {
+                            y += deltaY.get(deltaY.size() - 1);
+                        }
+                    }
+                }
+                GeneralPath shape = tbDrawChars.get(drawOffset);
+                if (shape == null) {
+                    // 没有字形，那么忽略绘制
+                    continue;
+                }
+                // 结合变换矩阵绘制字形
+                Matrix matrix = chatMatrix(textObject, x, y, fontSize, fontMatrix, baseMatrix);
+                renderChar(graphics, shape, matrix, strokeColor, fillColor);
+            }
+            // 更新上一个TextCode的X和Y，用于缺失 X或Y时准备
+            if (textCode.getX() != null) {
+                previousX = textCode.getX();
+            }
+            if (textCode.getY() != null) {
+                previousY = textCode.getY();
+            }
         }
         logger.debug("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
     }
@@ -625,44 +664,33 @@ public abstract class AWTMaker {
     }
 
     private Path2D buildPath(String abbreviatedData) {
+        // Path 压缩格式解析
+        LinkedList<OptVal> optValArr = AbbreviatedData.parse(abbreviatedData);
         Path2D path = new Path2D.Double();
         path.moveTo(0, 0);
-        String[] s = abbreviatedData.split("\\s+");
-        int i = 0;
-        while (i < s.length) {
-            String operator = s[i];
-            switch (operator) {
+        for (OptVal optVal : optValArr) {
+            double[] arr = optVal.expectValues();
+            switch (optVal.opt) {
                 case "S":
                 case "M":
-                    path.moveTo(Double.valueOf(s[i + 1]), Double.valueOf(s[i + 2]));
-                    i += 3;
+                    path.moveTo(arr[0], arr[1]);
                     break;
                 case "L":
-                    path.lineTo(Double.valueOf(s[i + 1]), Double.valueOf(s[i + 2]));
-                    i += 3;
+                    path.lineTo(arr[0], arr[1]);
                     break;
                 case "Q":
-                    path.quadTo(Double.valueOf(s[i + 1]), Double.valueOf(s[i + 2]), Double.valueOf(s[i + 3]),
-                            Double.valueOf(s[i + 4]));
-                    i += 5;
+                    path.quadTo(arr[0], arr[1], arr[2], arr[3]);
                     break;
                 case "B":
-                    path.curveTo(Double.valueOf(s[i + 1]), Double.valueOf(s[i + 2]), Double.valueOf(s[i + 3]),
-                            Double.valueOf(s[i + 4]), Double.valueOf(s[i + 5]),
-                            Double.valueOf(s[i + 6]));
-                    i += 7;
+                    path.curveTo(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
                     break;
                 case "A":
                     // path.append(new
                     // Arc2D.Double(Double.valueOf(s[i+1]),Double.valueOf(s[i+2]),Double.valueOf(s[i+3]),Double.valueOf(s[i+4]),Double.valueOf(s[i+5]),Double.valueOf(s[i+3]),-1),true);
-                    i += 7;
                     break;
                 case "C":
                     path.closePath();
-                    i++;
                     break;
-                default:
-                    i++;
             }
         }
         return path;
@@ -735,7 +763,7 @@ public abstract class AWTMaker {
                 if ("0.0".equals(s))
                     color[i] = 0;
                 else
-                    color[i] = Integer.valueOf(s);
+                    color[i] = Integer.parseInt(s);
             }
         }
         switch (type) {
@@ -753,28 +781,24 @@ public abstract class AWTMaker {
     }
 
     public static List<Double> parseDelta(ST_Array array) {
-        if (array == null) return null;
+        if (array == null) return new ArrayList<>(0);
         List<Double> arr = new ArrayList<>();
 
         int i = 0;
-        int counter = 0;
         while (i < array.size()) {
             String current = array.getArray().get(i);
             if ("g".equals(current)) {
-                Integer num = Integer.valueOf(array.getArray().get(i + 1));
+                int num = Integer.parseInt(array.getArray().get(i + 1));
                 Double delta = Double.valueOf(array.getArray().get(i + 2));
                 for (int j = 1; j <= num; j++) {
                     arr.add(delta);
-                    counter++;
                 }
                 i += 3;
             } else {
                 Double delta = Double.valueOf(current);
                 arr.add(delta);
-                counter++;
                 i++;
             }
-
         }
         return arr;
     }

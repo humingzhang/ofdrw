@@ -20,6 +20,7 @@ import com.itextpdf.kernel.pdf.colorspace.PdfDeviceCs;
 import com.itextpdf.kernel.pdf.colorspace.PdfPattern;
 import com.itextpdf.kernel.pdf.colorspace.PdfShading;
 import com.itextpdf.kernel.pdf.extgstate.PdfExtGState;
+import com.itextpdf.kernel.pdf.filespec.PdfFileSpec;
 import com.itextpdf.kernel.pdf.xobject.PdfFormXObject;
 import com.itextpdf.kernel.pdf.xobject.PdfImageXObject;
 import com.itextpdf.layout.Canvas;
@@ -32,6 +33,7 @@ import org.ofdrw.converter.utils.CommonUtil;
 import org.ofdrw.converter.utils.PointUtil;
 import org.ofdrw.converter.utils.StringUtils;
 import org.ofdrw.core.annotation.pageannot.Annot;
+import org.ofdrw.core.attachment.CT_Attachment;
 import org.ofdrw.core.basicStructure.pageObj.layer.CT_Layer;
 import org.ofdrw.core.basicStructure.pageObj.layer.PageBlockType;
 import org.ofdrw.core.basicStructure.pageObj.layer.block.*;
@@ -53,9 +55,14 @@ import org.ofdrw.reader.ResourceLocator;
 import org.ofdrw.reader.ResourceManage;
 import org.ofdrw.reader.model.AnnotionEntity;
 import org.ofdrw.reader.model.StampAnnotEntity;
+import org.ofdrw.reader.tools.ImageUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -127,6 +134,30 @@ public class ItextMaker {
         // 绘制注释
         writeAnnoAppearance(resMgt, pdfCanvas, pageInfo, annotationEntities, pageBox);
         return pdfPage;
+    }
+
+    /**
+     * 添加附件
+     *
+     * @param pdf       PDF文档对象
+     * @param ofdReader OFD解析器
+     * @throws IOException IO异常
+     */
+    public void addAttachments(PdfDocument pdf, OFDReader ofdReader) throws IOException {
+        // 获取OFD中所有附件
+        List<CT_Attachment> attachmentList = ofdReader.getAttachmentList();
+        for (CT_Attachment attachment : attachmentList) {
+            Path attFile = ofdReader.getAttachmentFile(attachment);
+            byte[] fileBytes = Files.readAllBytes(attFile);
+            String fileName = attFile.getFileName().toString();
+            final String attachmentName = attachment.getAttachmentName();
+            String displayFileName = StringUtils.isBlank(attachmentName) ? fileName :
+                    attachmentName.concat(fileName.contains(".") ?
+                            fileName.substring(fileName.lastIndexOf(".")) : "");
+            PdfFileSpec fs = PdfFileSpec.createEmbeddedFileSpec(pdf, fileBytes, null, displayFileName,
+                    null);
+            pdf.addFileAttachment(displayFileName, fs);
+        }
     }
 
     /**
@@ -515,7 +546,11 @@ public class ItextMaker {
     }
 
     private void writeImage(ResourceManage resMgt, PdfCanvas pdfCanvas, ST_Box box, ImageObject imageObject, ST_Box annotBox, Integer compositeObjectAlpha, ST_Box compositeObjectBoundary, ST_Array compositeObjectCTM) throws IOException {
-        byte[] imageByteArray = resMgt.getImageByteArray(imageObject.getResourceID().toString());
+        final ST_RefID resourceID = imageObject.getResourceID();
+        if (resourceID == null) {
+            return;
+        }
+        byte[] imageByteArray = resMgt.getImageByteArray(resourceID.toString());
         if (imageByteArray == null) {
             return;
         }
@@ -542,7 +577,7 @@ public class ItextMaker {
         pdfCanvas.restoreState();
     }
 
-    private void writeSealImage(PdfDocument pdfDocument, PdfCanvas pdfCanvas, ST_Box box, byte[] image, ST_Box sealBox, ST_Box clipBox) {
+    private void writeSealImage(PdfDocument pdfDocument, PdfCanvas pdfCanvas, ST_Box box, byte[] image, ST_Box sealBox, ST_Box clipBox) throws IOException {
         if (image == null) {
             return;
         }
@@ -551,8 +586,10 @@ public class ItextMaker {
         float width = sealBox.getWidth().floatValue();
         float height = sealBox.getHeight().floatValue();
         Rectangle rect = new Rectangle((float) converterDpi(x), (float) converterDpi(y), (float) converterDpi(width), (float) converterDpi(height));
+        // 将背景设置为透明，抠图阈值为 244（实践得到最佳）
+        BufferedImage bImg = ImageUtils.clearWhiteBackground(ImageIO.read(new ByteArrayInputStream(image)), 244);
+        ImageData img = ImageDataFactory.create(bImg, null);
 
-        ImageData img = ImageDataFactory.create(image);
         PdfFormXObject xObject = new PdfFormXObject(new Rectangle(rect.getWidth(), rect.getHeight()));
         PdfCanvas xObjectCanvas = new PdfCanvas(xObject, pdfDocument);
         if (clipBox != null) {
@@ -620,6 +657,11 @@ public class ItextMaker {
                     textObject.getBoundary().getWidth(),
                     textObject.getBoundary().getHeight());
         }
+        // 修正线宽不受ctm影响的问题
+        double lineWidth = 0.0;
+        if (textObject.getLineWidth() != null) {
+            lineWidth = textObject.getLineWidth();
+        }
         if (textObject.getCTM() != null) {
             Double[] ctm = textObject.getCTM().toDouble();
             double a = ctm[0].doubleValue();
@@ -632,6 +674,8 @@ public class ItextMaker {
             double angel = Math.atan2(-b, d);
             if (!(angel == 0 && a != 0 && d == 1)) {
                 fontSize = (float) (fontSize * sx);
+                // 修正线宽不受ctm影响的问题
+                lineWidth = lineWidth * sx;
             }
         }
         if (compositeObjectCTM != null) {
@@ -646,6 +690,8 @@ public class ItextMaker {
             double angel = Math.atan2(-b, d);
             if (!(angel == 0 && a != 0 && d == 1)) {
                 fontSize = (float) (fontSize * sx);
+                // 修正线宽不受ctm影响的问题
+                lineWidth = lineWidth * sx;
             }
         }
 
@@ -692,8 +738,8 @@ public class ItextMaker {
             pdfCanvas.setFontAndSize(font, (float) converterDpi(fontSize));
 
             if (textObject.getLineWidth() != null) {
-//                pdfCanvas.setLineWidth((float) converterDpi(textObject.getLineWidth()));
-                pdfCanvas.setLineWidth(new Float(textObject.getLineWidth()));
+                //  修正线宽不受ctm影响的问题
+                pdfCanvas.setLineWidth((float) lineWidth);
                 //处理加粗字体
                 pdfCanvas.setFillColor(ColorConstants.BLACK);
                 pdfCanvas.setTextRenderingMode(PdfCanvasConstants.TextRenderingMode.FILL_STROKE);
@@ -731,14 +777,11 @@ public class ItextMaker {
      * @return 字体
      */
     private FontWrapper<PdfFont> getFont(ResourceLocator rl, CT_Font ctFont) {
-        String key = String.format("%s_%s_%s", ctFont.getFamilyName(), ctFont.getFontName(), ctFont.getFontFile());
+        String key = String.format("%s_%s_%s", ctFont.getFamilyName(), ctFont.attributeValue("FontName"), ctFont.getFontFile());
         if (fontCache.containsKey(key)) {
             return fontCache.get(key);
         }
         FontWrapper<PdfFont> font = FontLoader.getInstance().loadPDFFontSimilar(rl, ctFont);
-//        if (font == null) {
-//            font = DEFAULT_FONT;
-//        }
         fontCache.put(key, font);
         return font;
     }

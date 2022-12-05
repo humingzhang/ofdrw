@@ -8,6 +8,7 @@ import org.ofdrw.core.basicStructure.ofd.DocBody;
 import org.ofdrw.core.basicStructure.ofd.OFD;
 import org.ofdrw.core.basicStructure.ofd.docInfo.CT_DocInfo;
 import org.ofdrw.core.basicStructure.pageObj.Page;
+import org.ofdrw.core.basicType.ST_Box;
 import org.ofdrw.pkg.container.DocDir;
 import org.ofdrw.pkg.container.OFDDir;
 import org.ofdrw.pkg.container.ResDir;
@@ -175,25 +176,6 @@ class OFDReaderTest {
         }
     }
 
-
-    /**
-     * 测试Document.xml中 ofd:Attachments 指向路径和Document.xml不在同一级目录时无法获取附件路径
-     * 具体参见img中电子票据文件夹
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testReadAttachments() throws Exception {
-
-        Path path = Paths.get("src/test/resources/invoice.ofd");
-        try (OFDReader ofdReader = new OFDReader(path)) {
-            Path original_invoice = ofdReader.getAttachmentFile("original_invoice");
-            System.out.println(original_invoice);
-            assertNotNull(original_invoice);
-
-        }
-    }
-
     @Test
     void getStampAnnots() throws IOException {
         Path path = Paths.get("src/test/resources/发票示例.ofd");
@@ -202,6 +184,15 @@ class OFDReaderTest {
             System.out.println(stampAnnots.size());
             assertEquals(1, stampAnnots.size());
         }
+    }
 
+
+    @Test
+    void getPageSize() throws Exception {
+        Path path = Paths.get("src/test/resources/发票示例.ofd");
+        try (OFDReader reader = new OFDReader(path)) {
+            final ST_Box pageSize = reader.getPageSize(1);
+            System.out.println(pageSize);
+        }
     }
 }

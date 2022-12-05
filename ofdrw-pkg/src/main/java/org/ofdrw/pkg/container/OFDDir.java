@@ -1,16 +1,23 @@
 package org.ofdrw.pkg.container;
 
 import net.lingala.zip4j.ZipFile;
+import org.apache.commons.io.FilenameUtils;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
+import org.jetbrains.annotations.Nullable;
 import org.ofdrw.core.basicStructure.ofd.DocBody;
 import org.ofdrw.core.basicStructure.ofd.OFD;
 import org.ofdrw.core.basicType.ST_Loc;
+import org.ofdrw.core.crypto.encryt.Encryptions;
 
 import java.io.*;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -29,6 +36,15 @@ public class OFDDir extends VirtualContainer {
      * OFD文档主入口文件名称
      */
     public static final String OFDFileName = "OFD.xml";
+    /**
+     * 解密入口文件名称
+     */
+    public static final String EncryptionsFileName = "Encryptions.xml";
+
+    /**
+     * OFD防止夹带文件
+     */
+    public static final String OFDEntriesFileName = "OFDEntries.xml";
 
     /**
      * 最大文档索引 + 1
@@ -110,6 +126,61 @@ public class OFDDir extends VirtualContainer {
     }
 
     /**
+     * 获取 解密入口文件
+     * <p>
+     * 如果文件不存在那么创建新的文件
+     *
+     * @return 解密入口文件
+     */
+    public Encryptions obtainEncryptions() {
+        Encryptions encryptions = null;
+        try {
+            encryptions = this.getEncryptions();
+        } catch (DocumentException e) {
+            throw new RuntimeException("无法解析解密入口文件", e);
+        }
+        if (encryptions == null) {
+            encryptions = new Encryptions();
+            // 添加到OFD容器内
+            this.setEncryptions(encryptions);
+        }
+        return encryptions;
+    }
+
+    /**
+     * 获取 解密入口文件
+     *
+     * @return 解密入口文件 或 null（不存在）
+     * @throws DocumentException 解密入口文件无法解析
+     */
+    @Nullable
+    public Encryptions getEncryptions() throws DocumentException {
+        try {
+            Element obj = this.getObj(EncryptionsFileName);
+            if (obj == null) {
+                return null;
+            }
+            return new Encryptions(obj);
+        } catch (FileNotFoundException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 设置 解密入口文件
+     *
+     * @param encryptions 解密入口文件
+     * @return this
+     */
+    public OFDDir setEncryptions(Encryptions encryptions) {
+        if (encryptions == null) {
+            return this;
+        }
+        this.putObj(EncryptionsFileName, encryptions);
+        return this;
+    }
+
+    /**
      * 新建一个文档容器
      *
      * @return 新建的文档容器
@@ -137,6 +208,18 @@ public class OFDDir extends VirtualContainer {
     }
 
     /**
+     * 获取OFD文档中最新的文档目录
+     * <p>
+     * 一般来说序号最大的最新 Doc_N
+     *
+     * @return 文档目录
+     */
+    public DocDir getLatestDir() {
+        String name = DocDir.DocContainerPrefix + (maxDocIndex - 1);
+        return this.obtainContainer(name, DocDir::new);
+    }
+
+    /**
      * 通过文档索引获取文档容器
      *
      * @param index 文档索引
@@ -160,13 +243,14 @@ public class OFDDir extends VirtualContainer {
     public DocDir obtainDocDefault() {
         if (exit(OFDFileName)) {
             // 检查OFDFileName是否已经存在，如果存在那么大可能性是读取操作
-            // 在读模式下，通过OFD.xml 第一个DocBody节点中的DocRoot作为默认文档
+            // 在读模式下，通过OFD.xml 最后一个DocBody节点中的DocRoot作为默认文档
             // 如果获取失败那么，尝试获取Doc_0
             OFD ofd;
             try {
                 ofd = getOfd();
-                DocBody docBody = ofd.getDocBody();
-                if (docBody != null) {
+                final List<DocBody> docBodies = ofd.getDocBodies();
+                if (!docBodies.isEmpty()) {
+                    final DocBody docBody = docBodies.get(docBodies.size() - 1);
                     ST_Loc docRoot = docBody.getDocRoot();
                     return this.obtainContainer(docRoot.parent(), DocDir::new);
                 }
@@ -176,6 +260,7 @@ public class OFDDir extends VirtualContainer {
         }
         return obtainDoc(0);
     }
+
 
     /**
      * 打包成OFD并输出到流
@@ -306,5 +391,32 @@ public class OFDDir extends VirtualContainer {
                 ofdFile.addFile(f);
             }
         }
+    }
+
+    /**
+     * 遍历OFD文件包内的所有文件
+     *
+     * @param iterator OFD包内文件迭代器
+     * @throws IOException 文件读写异常
+     */
+    public void walk(OFDPackageFileIterator iterator) throws IOException {
+        if (iterator == null) {
+            throw new IllegalArgumentException("包内文件迭代器(iterator)为空");
+        }
+        String sysRoot = FilenameUtils.separatorsToUnix(this.getSysAbsPath());
+        Files.walkFileTree(this.getContainerPath(), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                // 路径转换为Unix类型的绝对路径
+                String abxFilePath = FilenameUtils.separatorsToUnix(file.toAbsolutePath().toString());
+                // 替换文件系统的根路径，这样就为容器系统中的绝对路径
+                abxFilePath = abxFilePath.replace(sysRoot, "");
+                final boolean continueIterator = iterator.visit(abxFilePath, file);
+                if (!continueIterator) {
+                    return FileVisitResult.TERMINATE;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

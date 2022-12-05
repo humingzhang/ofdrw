@@ -5,7 +5,7 @@
     <parent>
         <artifactId>ofdrw</artifactId>
         <groupId>org.ofdrw</groupId>
-        <version>1.11.2</version>
+        <version>1.20.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -57,6 +57,11 @@
         <dependency>
             <groupId>org.ofdrw</groupId>
             <artifactId>ofdrw-converter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ofdrw</groupId>
+            <artifactId>ofdrw-tool</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

@@ -53,6 +53,13 @@ public class Paragraph extends Div<Paragraph> {
     private LinkedList<TxtLineBlock> lines;
 
     /**
+     * 字体在段落内的浮动方向
+     * <p>
+     * 默认为：左浮动
+     */
+    private TextAlign textAlign = TextAlign.left;
+
+    /**
      * 创建一个固定大小段落对象
      *
      * @param width  内容宽度
@@ -80,7 +87,7 @@ public class Paragraph extends Div<Paragraph> {
 
     /**
      * 新建一个段落对象
-     *
+     * <p>
      * 如果在指定段落中文字大小建议使用{@link Paragraph#Paragraph(java.lang.String, java.lang.Double)}
      *
      * @param text 文字内容
@@ -105,6 +112,38 @@ public class Paragraph extends Div<Paragraph> {
             throw new IllegalArgumentException("文字内容为null");
         }
         this.setFontSize(defaultFontSize);
+        this.add(text);
+    }
+
+    /**
+     * 新建一个段落对象，并指定文字大小和字体
+     *
+     * @param text            文字内容
+     * @param defaultFontSize 默认字体大小
+     * @param defaultFont     默认字体
+     */
+    public Paragraph(String text, Double defaultFontSize, Font defaultFont) {
+        this();
+        if (text == null) {
+            throw new IllegalArgumentException("文字内容为null");
+        }
+        this.setFontSize(defaultFontSize);
+        this.setDefaultFont(defaultFont);
+        this.add(text);
+    }
+
+    /**
+     * 新建一个段落对象，并指定字体
+     *
+     * @param text        文字内容
+     * @param defaultFont 默认字体
+     */
+    public Paragraph(String text, Font defaultFont) {
+        this();
+        if (text == null) {
+            throw new IllegalArgumentException("文字内容为null");
+        }
+        this.setDefaultFont(defaultFont);
         this.add(text);
     }
 
@@ -162,6 +201,22 @@ public class Paragraph extends Div<Paragraph> {
         return this;
     }
 
+    /**
+     * 设置默认字体
+     * <p>
+     * 注意：在设置 defaultFont 之前被添加的内容，不会在调用 defaultFont 方法后而改变，除非指定 refreshBeforeAdd=true
+     *
+     * @param defaultFont      默认字体
+     * @param refreshBeforeAdd 是否对之前add的text内容应用这个字体
+     * @return this
+     */
+    public Paragraph setDefaultFont(Font defaultFont, boolean refreshBeforeAdd) {
+        this.defaultFont = defaultFont;
+        if (refreshBeforeAdd)
+            this.contents.forEach(span -> span.setFont(defaultFont));
+        return this;
+    }
+
     public Double getFontSize() {
         return defaultFontSize;
     }
@@ -179,6 +234,26 @@ public class Paragraph extends Div<Paragraph> {
      */
     public Paragraph setFontSize(Double defaultFontSize) {
         this.defaultFontSize = defaultFontSize;
+        return this;
+    }
+
+    /**
+     * 设置段落内默认的字体大小
+     * <p>
+     * 如果加入的文字没有设置大小，那么默认使用该值。
+     * <p>
+     * 注意：该操作不会对段落内已经存在的文字生效，
+     * 因此在添加文字之后，在调用该方法，原有的文字大小不会变换。
+     * 你可以指定 refreshBeforeAdd=true 来使之前添加的内容也生效。
+     *
+     * @param defaultFontSize  默认字体大小
+     * @param refreshBeforeAdd 是否刷新之前添加的内容
+     * @return this
+     */
+    public Paragraph setFontSize(Double defaultFontSize, boolean refreshBeforeAdd) {
+        this.defaultFontSize = defaultFontSize;
+        if (refreshBeforeAdd)
+            this.contents.forEach(span -> span.setFontSize(defaultFontSize));
         return this;
     }
 
@@ -203,7 +278,7 @@ public class Paragraph extends Div<Paragraph> {
      * @return 行块
      */
     private TxtLineBlock newLine(double width) {
-        return new TxtLineBlock(width, lineSpace);
+        return new TxtLineBlock(width, lineSpace, textAlign);
     }
 
 
@@ -259,6 +334,33 @@ public class Paragraph extends Div<Paragraph> {
     public Paragraph clearFirstLineIndent() {
         this.firstLineIndent = null;
         return this;
+    }
+
+    /**
+     * 设置段落内字体浮动
+     * <p>
+     * 默认为左浮动
+     *
+     * @param textAlign 浮动方向
+     * @return this
+     */
+    public Paragraph setTextAlign(TextAlign textAlign) {
+        if (textAlign == null) {
+            textAlign = TextAlign.left;
+        }
+        this.textAlign = textAlign;
+        return this;
+    }
+
+    /**
+     * 获取段落内字体浮动
+     * <p>
+     * 默认为左浮动
+     *
+     * @return 浮动方向
+     */
+    public TextAlign getTextAlign() {
+        return this.textAlign;
     }
 
     /**
@@ -350,6 +452,8 @@ public class Paragraph extends Div<Paragraph> {
 
     /**
      * 预布局
+     * <p>
+     * 该方法主要有渲染器调用，请勿主动调用该方法，除非你知道你在做什么。
      *
      * @param widthLimit 宽度限制
      * @return 元素尺寸

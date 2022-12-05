@@ -9,7 +9,7 @@
     <groupId>org.ofdrw</groupId>
     <artifactId>ofdrw</artifactId>
     <packaging>pom</packaging>
-    <version>1.11.2</version>
+    <version>1.20.1</version>
 
     <url>https://github.com/ofdrw/ofdrw</url>
     <description>Open Fixed layout Document Reader And Writer Libary(OFD-RW) provider developers to generate ofd
@@ -27,6 +27,8 @@
         <module>ofdrw-gv</module>
         <module>ofdrw-gm</module>
         <module>ofdrw-converter</module>
+        <module>ofdrw-crypto</module>
+        <module>ofdrw-tool</module>
     </modules>
 
     <developers>
@@ -76,6 +78,13 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>org.jetbrains</groupId>
+                <artifactId>annotations</artifactId>
+                <version>21.0.1</version>
+            </dependency>
+
+
+            <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter-api</artifactId>
                 <version>5.5.2</version>
@@ -113,6 +122,7 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <version>3.8.1</version>
                         <configuration>
+                            <skip>true</skip>
                             <source>8</source>
                             <target>8</target>
                             <encoding>UTF-8</encoding>

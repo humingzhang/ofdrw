@@ -12,7 +12,9 @@ import org.ofdrw.core.Const;
  *
  * @author 权观宇
  * @since 2020-10-15 20:01:20
+ * @deprecated {@link org.ofdrw.pkg.tool.OFDNameSpaceModifier}
  */
+@Deprecated
 public class NameSpaceModifier extends VisitorSupport {
     /**
      * 期望变更的命名空间
@@ -42,15 +44,17 @@ public class NameSpaceModifier extends VisitorSupport {
 
     /**
      * 根节点遍历
+     *
      * @param document 根节点对象
      */
     public void visit(Document document) {
-        ((DefaultElement) document.getRootElement()).setNamespace(this.expectNs);
         document.getRootElement().additionalNamespaces().clear();
+        ((DefaultElement) document.getRootElement()).setNamespace(this.expectNs);
     }
 
     /**
      * 命名空间遍历
+     *
      * @param namespace 命名空间
      */
     public void visit(Namespace namespace) {
@@ -67,6 +71,7 @@ public class NameSpaceModifier extends VisitorSupport {
 
     /**
      * 根节点下的子节点遍历
+     *
      * @param node 子节点
      */
     public void visit(Element node) {
@@ -77,6 +82,7 @@ public class NameSpaceModifier extends VisitorSupport {
 
     /**
      * 设置期望变更到的命名空间
+     *
      * @param expectNs 命名空间
      * @return this
      */

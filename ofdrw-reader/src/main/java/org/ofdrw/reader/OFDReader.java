@@ -2,6 +2,7 @@ package org.ofdrw.reader;
 
 import org.apache.commons.io.FileUtils;
 import org.dom4j.DocumentException;
+import org.ofdrw.core.OFDElement;
 import org.ofdrw.core.annotation.Annotations;
 import org.ofdrw.core.annotation.pageannot.AnnPage;
 import org.ofdrw.core.annotation.pageannot.PageAnnot;
@@ -81,6 +82,16 @@ public class OFDReader implements Closeable {
         return workDir;
     }
 
+    /**
+     * 设置 OFD解压后最大占用文件大小
+     * <p>
+     * 默认值： 100MB
+     *
+     * @param size 解压文件大小，单位字节（Byte）
+     */
+    public static void setZipFileMaxSize(long size) {
+        ZipUtil.setMaxSize(size);
+    }
 
     /**
      * 构造一个 OFDReader
@@ -94,7 +105,7 @@ public class OFDReader implements Closeable {
         }
         workDir = Files.createTempDirectory("ofd-tmp-");
         // 解压文档，到临时的工作目录
-        ZipUtil.unZipFiles(ofdFile.toFile(), workDir.toAbsolutePath().toString() + File.separator);
+        ZipUtil.unZipFileByApacheCommonCompress(ofdFile.toFile(), workDir.toAbsolutePath().toString() + File.separator);
         ofdDir = new OFDDir(workDir);
         // 创建资源定位器
         rl = new ResourceLocator(ofdDir);
@@ -307,13 +318,25 @@ public class OFDReader implements Closeable {
                 templatePages.add(template);
             }
 
+            // Page_N 数组
+            int n = index;
+            String pageNName = new ST_Loc(pageLoc.parent()).getFileName().toLowerCase();
+            if (pageNName.matches("page_\\d+")) {
+                try {
+                    n = Integer.parseInt(pageNName.replace("page_", ""));
+                } catch (NumberFormatException e) {
+                    // ignore
+                }
+            }
+
             return new PageInfo()
                     .setIndex(pageNum)
                     .setId(pageList.get(index).getID())
                     .setObj(obj)
                     .setSize(pageSize.clone())
                     .setPageAbsLoc(pageLoc)
-                    .setTemplates(templatePages);
+                    .setTemplates(templatePages)
+                    .setPageN(n);
         } catch (FileNotFoundException | DocumentException e) {
 
             throw new RuntimeException("OFD解析失败，原因:" + e.getMessage(), e);
@@ -398,6 +421,26 @@ public class OFDReader implements Closeable {
     }
 
     /**
+     * 获取文档对象
+     *
+     * @param numOfDoc 文档序号
+     * @return 文档对象
+     * @throws DocumentException     文档解析异常
+     * @throws FileNotFoundException Document.xml文档不存在
+     */
+    public Document getDoc(int numOfDoc) throws DocumentException, FileNotFoundException {
+        rl.save();
+        try {
+            rl.cd("/");
+            DocBody docBody = ofdDir.getOfd().getDocBody(numOfDoc);
+            ST_Loc docRoot = docBody.getDocRoot();
+            return rl.get(docRoot, Document::new);
+        } finally {
+            rl.restore();
+        }
+    }
+
+    /**
      * 切换目录到默认的文档目录下下
      * <p>
      * 该操作将会导致资源加载器变更目录
@@ -457,6 +500,16 @@ public class OFDReader implements Closeable {
         return pageArea.getBox();
     }
 
+    /**
+     * 获取页面物理大小
+     *
+     * @param num 页码，从1起
+     * @return 页面物理尺寸
+     */
+    public ST_Box getPageSize(int num) {
+        final Page page = getPage(num);
+        return getPageSize(page);
+    }
 
     /**
      * 通过页面页码获取页面对象
@@ -465,7 +518,28 @@ public class OFDReader implements Closeable {
      * @return 页面对象
      */
     public Page getPage(int pageNum) {
-        return getPageInfo(pageNum).getObj();
+        if (pageNum <= 0) {
+            throw new NumberFormatException("页码(pageNum)不能小于0");
+        }
+        try {
+            rl.save();
+            int index = pageNum - 1;
+            // 路径解析对象获取并缓存虚拟容器
+            Document document = cdDefaultDoc();
+            Pages pages = document.getPages();
+            List<org.ofdrw.core.basicStructure.pageTree.Page> pageList = pages.getPages();
+            if (index >= pageList.size()) {
+                throw new NumberFormatException(pageNum + "超过最大页码:" + pageList.size());
+            }
+            // 获取页面的路径
+            ST_Loc pageLoc = pageList.get(index).getBaseLoc();
+            return rl.get(pageLoc, Page::new);
+        } catch (FileNotFoundException | DocumentException e) {
+            throw new RuntimeException("OFD解析失败，原因:" + e.getMessage(), e);
+        } finally {
+            // 还原原有工作区
+            rl.restore();
+        }
     }
 
     /**
@@ -488,23 +562,101 @@ public class OFDReader implements Closeable {
     }
 
     /**
+     * 获取所有附件对象
+     * <p>
+     * 注意该对象均为只读
+     *
+     * @return 附件数组，如果没有附件返还空数组
+     * @throws BadOFDException 文档结构损坏
+     */
+    public List<CT_Attachment> getAttachmentList() {
+        rl.save();
+        try {
+            DocDir docDir = ofdDir.obtainDocDefault();
+            rl.cd(docDir);
+            Document document = null;
+            Attachments attachments = null;
+            try {
+                document = docDir.getDocument();
+            } catch (FileNotFoundException | DocumentException e) {
+                throw new BadOFDException(e);
+            }
+            ST_Loc attachmentsLoc = document.getAttachments();
+            if (attachmentsLoc == null || (!rl.exist(attachmentsLoc.toString()))) {
+                return new ArrayList<>();
+            }
+            try {
+                // 获取附件目录
+                attachments = rl.get(attachmentsLoc, Attachments::new);
+            } catch (FileNotFoundException | DocumentException e) {
+                System.err.println(">> 无法获取或解析Attachments.xml: " + e.getMessage());
+                return new ArrayList<>();
+            }
+
+            String parent = attachmentsLoc.parent();
+            if (parent != null) {
+                rl.cd(parent);
+            }
+
+            List<CT_Attachment> res = attachments.getAttachments();
+            if (!res.isEmpty()) {
+                // 设置文件为绝对路径，外部读取时工作路径不正确导致的文件不存在。
+                for (CT_Attachment item : res) {
+                    item.setFileLoc(rl.getAbsTo(item.getFileLoc()));
+                }
+            }
+            return res;
+        } finally {
+            rl.restore();
+        }
+    }
+
+    /**
+     * 获取附件文件
+     * <p>
+     * 注意：该文件会在Close Reader时候被删除，请在之前复制到其他地方
+     *
+     * @param attachment 附件信息
+     *
+     * @return 附件文件路径
+     */
+    public Path getAttachmentFile(CT_Attachment attachment) {
+        if (attachment == null) {
+            return null;
+        }
+        ST_Loc fileLoc = attachment.getFileLoc();
+        try {
+            return rl.getFile(fileLoc);
+        } catch (FileNotFoundException e) {
+            System.err.println(">> 无法根据附件对象的描述获取到附件: " + fileLoc.toString());
+            return null;
+        }
+    }
+
+    /**
      * 获取附件对象
+     * <p>
+     * 该方法不会恢复资源定位器
      *
      * @param name 附件名称
-     * @return 如果附件或附件记录不存在，那么返还null
-     * @throws BadOFDException 文档结构损坏
+     * @return 附件对象
      */
     public CT_Attachment getAttachment(String name) {
         if (name == null || name.trim().length() == 0) {
             return null;
         }
-        rl.save();
-        try {
-            return getAttachment(name, rl);
-        } finally {
-            rl.restore();
+
+        List<CT_Attachment> attachmentList = this.getAttachmentList();
+
+        for (CT_Attachment attachment : attachmentList) {
+            // 寻找匹配名称的附件
+            if (attachment.getAttachmentName().equals(name)) {
+                return attachment;
+            }
         }
+        return null;
     }
+
 
     /**
      * 获取附件文件
@@ -586,6 +738,7 @@ public class OFDReader implements Closeable {
         return null;
     }
 
+
     /**
      * 获取默认文档中的签章信息
      *
@@ -594,20 +747,19 @@ public class OFDReader implements Closeable {
     public List<StampAnnotEntity> getStampAnnots() {
         if (!hasSignature()) {
             // 没有签名的情况下返还空集合，防止NPE
-            return Collections.EMPTY_LIST;
+            return Collections.emptyList();
         }
 
         try {
             rl.save();
-            ST_Loc signaturesLoc = getDefaultDocSignaturesPath();
-            // 检查文件是否存在
-            if (!rl.exist(signaturesLoc.toString())) {
-                return Collections.EMPTY_LIST;
-            }
-            // 切换目录到 Signatures.xml所在目录
-            rl.cd(signaturesLoc.parent());
             // 签名列表
             final Signatures sigFileList = getDefaultSignatures();
+            if (sigFileList == null) {
+                return Collections.emptyList();
+            }
+            ST_Loc signaturesLoc = getDefaultDocSignaturesPath();
+            // 切换目录到 Signatures.xml所在目录
+            rl.cd(signaturesLoc.parent());
             final List<Signature> sigInfoList = sigFileList.getSignatures();
             List<StampAnnotEntity> res = new ArrayList<>(sigInfoList.size());
             for (Signature sigInfoItem : sigInfoList) {
@@ -651,11 +803,11 @@ public class OFDReader implements Closeable {
             Document document = cdDefaultDoc();
             final ST_Loc annInfosLoc = document.getAnnotations();
             if (annInfosLoc == null || (!rl.exist(annInfosLoc.toString()))) {
-                return Collections.EMPTY_LIST;
+                return Collections.emptyList();
             }
             Annotations annotations = rl.get(annInfosLoc, Annotations::new);
             if (annotations == null) {
-                return Collections.EMPTY_LIST;
+                return Collections.emptyList();
             }
             // 切换目录到 Annotations.xml所在文件目录
             rl.cd(annInfosLoc.parent());
@@ -691,6 +843,18 @@ public class OFDReader implements Closeable {
         return resMgt;
     }
 
+    /**
+     * 启用或关闭命名空间严格解析模式
+     * <p>
+     * 启用严格模式后将会忽略非ofd命名空间的元素。
+     * <p>
+     * 默认：关闭严格模式
+     *
+     * @param enable true - 启用; false - 兼容模式（默认），兼容ofd命名空间
+     */
+    public static void setNamespaceStrictMode(boolean enable) {
+        OFDElement.NSStrictMode = enable;
+    }
 
     /**
      * 关闭文档
@@ -707,7 +871,7 @@ public class OFDReader implements Closeable {
         closed = true;
         if (workDir != null && Files.exists(workDir)) {
             try {
-                FileUtils.deleteDirectory(workDir.toFile());
+                FileUtils.forceDelete(workDir.toFile());
             } catch (IOException e) {
                 throw new IOException("无法删除Reader的工作空间，原因：" + e.getMessage(), e);
             }

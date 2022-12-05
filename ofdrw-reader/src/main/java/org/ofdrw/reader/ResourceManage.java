@@ -3,6 +3,7 @@ package org.ofdrw.reader;
 import org.apache.commons.io.IOUtils;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
+import org.ofdrw.core.OFDElement;
 import org.ofdrw.core.basicStructure.doc.CT_CommonData;
 import org.ofdrw.core.basicStructure.doc.Document;
 import org.ofdrw.core.basicStructure.ofd.DocBody;
@@ -35,13 +36,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 资源管理器
+ * 资源管理器（只读）
  * <p>
  * 使用ID随机访问文档中出现的资源对象
  * <p>
  * 包括 公共资源序列（PublicRes） 和 文档资源序列（DocumentRes）
  * <p>
- * 注意：资源管理器提供的资源对象均为只读对象（副本），不允许对资源进行修改。
+ * 注意：资源管理器提供的资源对象均为只读对象（副本），不允许对资源进行修改,所有提供的对象
+ * 中文档的相对路径均在加载时转换为绝对路径。
  *
  * @author 权观宇
  * @since 2021-04-10 11:06:00
@@ -69,13 +71,17 @@ public class ResourceManage {
     private final Map<String, CT_VectorG> compositeGraphicUnitMap = new HashMap<>();
 
     /**
+     * 所有资源和ID的映射表
+     */
+    private final Map<String, OFDElement> allResMap = new HashMap<>();
+
+    /**
      * 文档公共数据结构
      */
     private CT_CommonData commonData;
 
 
     private final OFDReader ofdReader;
-
 
     /**
      * 创建资源管理器
@@ -323,7 +329,11 @@ public class ResourceManage {
      * @throws IOException 图片操作IO异常
      */
     public BufferedImage getImage(ImageObject imageObject) throws IOException {
-        BufferedImage image = getImage(imageObject.getResourceID().toString());
+        final ST_RefID resourceID = imageObject.getResourceID();
+        if (resourceID == null) {
+            return null;
+        }
+        BufferedImage image = getImage(resourceID.toString());
         if (image == null) return null;
         if (imageObject.getImageMask() != null) {
             BufferedImage mask = getImage(imageObject.getImageMask().toString());
@@ -439,10 +449,17 @@ public class ResourceManage {
             rl.cd(docRoot.parent());
 
             commonData = new CT_CommonData((Element) document.getCommonData().clone());
-            // 公共资源序列（PublicRes）
-            loadResFile(rl, commonData.getPublicRes());
+            // 公共资源（PublicRes）
+            for (ST_Loc pubResLoc : commonData.getPublicResList()) {
+                loadResFile(rl, pubResLoc);
+            }
+
             // 文档资源序列（DocumentRes）
-            loadResFile(rl, commonData.getDocumentRes());
+            for (ST_Loc docResLoc : commonData.getDocumentResList()) {
+                loadResFile(rl, docResLoc);
+            }
+
+            // 页面资源，暂时忽略
         } finally {
             rl.restore();
         }
@@ -481,6 +498,7 @@ public class ResourceManage {
                             item.setProfile(absProfile);
                         }
                         colorSpaceMap.put(item.getID().toString(), item);
+                        allResMap.put(item.getID().toString(), item);
                     }
                     continue;
                 }
@@ -488,8 +506,9 @@ public class ResourceManage {
                 if (ofdResource instanceof DrawParams) {
                     for (CT_DrawParam drawParam : ((DrawParams) ofdResource).getDrawParams()) {
                         // 复制副本，作为只读对象
-                        CT_DrawParam item = new CT_DrawParam((Element) drawParam.clone());
+                        CT_DrawParam item = new CT_DrawParam(drawParam.clone());
                         drawParamMap.put(item.getID().toString(), item);
+                        allResMap.put(item.getID().toString(), item);
                     }
                     continue;
                 }
@@ -506,6 +525,7 @@ public class ResourceManage {
                             item.setFontFile(absFontFile);
                         }
                         fontMap.put(item.getID().toString(), item);
+                        allResMap.put(item.getID().toString(), item);
                     }
                     continue;
                 }
@@ -521,6 +541,7 @@ public class ResourceManage {
                             item.setMediaFile(absMediaFile);
                         }
                         multiMediaMap.put(item.getID().toString(), item);
+                        allResMap.put(item.getID().toString(), item);
                     }
                     continue;
                 }
@@ -531,11 +552,12 @@ public class ResourceManage {
                         // 复制副本，作为只读对象
                         CT_VectorG item = new CT_VectorG((Element) ctVectorG.clone());
                         compositeGraphicUnitMap.put(item.getID().toString(), item);
+                        allResMap.put(item.getID().toString(), item);
                     }
                 }
             }
         } catch (Exception e) {
-            System.err.println("无法解析资源描述文件 " + resLoc.toString() + " " + e.getMessage());
+            // System.out.println("[可忽略] 无法解析资源描述文件 " + resLoc.toString() + " " + e.getMessage());
         } finally {
             rl.restore();
         }
@@ -554,11 +576,20 @@ public class ResourceManage {
         if (target == null) {
             return null;
         }
+        if (target.isRootPath()) {
+            // 绝对路径
+            return target;
+        }
 
         ST_Loc absLoc;
         if (base != null) {
-            // 如果存在 资源文件的通用存储路径，那么以 通用存储路径 为基础拼接目标路径作为绝对路径
-            absLoc = rl.getAbsTo(base);
+            if (base.isRootPath()) {
+                // 资源文件的通用存储路径 为根路径时直接在此基础上拼接
+                absLoc = base;
+            } else {
+                // 资源文件的通用存储路径 为相对路径时，以结合当前资源文件位置推断当前路径
+                absLoc = rl.getAbsTo(base);
+            }
             absLoc = absLoc.cat(target);
         } else {
             // 不存在 通用存储路径 直接根据但前目录位置获取到绝对路径
@@ -627,5 +658,17 @@ public class ResourceManage {
      */
     public OFDReader getOfdReader() {
         return ofdReader;
+    }
+
+    /**
+     * 通过ID获取资源
+     * <p>
+     * 如果资源不存在，那么返回null
+     *
+     * @param id 资源ID
+     * @return 资源对象，null
+     */
+    public OFDElement get(String id) {
+        return allResMap.get(id);
     }
 }

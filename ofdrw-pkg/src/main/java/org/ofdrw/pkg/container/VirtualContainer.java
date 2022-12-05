@@ -8,13 +8,8 @@ import org.ofdrw.core.DefaultElementProxy;
 import org.ofdrw.core.basicType.ST_Loc;
 import org.ofdrw.pkg.tool.ElemCup;
 
-import java.io.Closeable;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.*;
+import java.nio.file.*;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -179,6 +174,35 @@ public class VirtualContainer implements Closeable {
         }
         // 复制文件到指定目录
         Files.copy(file, target);
+        return this;
+    }
+
+    /**
+     * 向虚拟容器中直接加入流类型资源
+     * <p>
+     * 根据提供文件名称创建文件
+     * <p>
+     * 输入流内容将直接写入文件内，不做检查
+     * <p>
+     * 若文件已经存在，那么将会覆盖原文件！
+     *
+     * @param fileName 文件名称
+     * @param in       输入流，流的关闭应由调用者负责
+     * @return this
+     * @throws IOException 文件复制异常
+     */
+    public VirtualContainer addRaw(String fileName, InputStream in) throws IOException {
+        Path target = Paths.get(fullPath, fileName);
+        byte[] buffer = new byte[4096];
+        int n = 0;
+        try (final OutputStream out = Files.newOutputStream(
+                target,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING)) {
+            while ((n = in.read(buffer)) != -1) {
+                out.write(buffer, 0, n);
+            }
+        }
         return this;
     }
 
@@ -443,7 +467,7 @@ public class VirtualContainer implements Closeable {
             // 序列化为文件
             // 检查文件是否被修改，只有被修改的文件才能够非flush
             if (fileChanged(filename, element)) {
-                ElemCup.dump(element, filePath);
+                ElemCup.dumpUpNS(element, filePath);
             }
         }
         // 递归的刷新容器中包含的其他容器
@@ -488,7 +512,7 @@ public class VirtualContainer implements Closeable {
             Path filePath = Paths.get(fullPath, name);
             // 检查文件是否被修改，只有被修改的文件才能够非flush
             if (fileChanged(name, element)) {
-                ElemCup.dump(element, filePath);
+                ElemCup.dumpUpNS(element, filePath);
             }
         }
         return this;
@@ -514,4 +538,6 @@ public class VirtualContainer implements Closeable {
         // 删除工作过程中存放于虚拟容器中的文件和目录
         flush();
     }
+
+
 }

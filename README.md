@@ -1,21 +1,25 @@
-# OFD Reader & Writer
+# OFD Reader & Writer 
 
-![-](https://img.shields.io/badge/language-java-orange.svg) [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
-
-
-在使用OFDRW前请务必悉知 [***《OFD Reader & Writer免责声明》***](免责声明.md)。
+![-](https://img.shields.io/badge/java-%3E%3D1.8-blue) ![Maven Central](https://img.shields.io/maven-central/v/org.ofdrw/ofdrw) [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE) 
 
 
-> 如何clone和预览存在困难，请移步 [https://gitee.com/ofdrw/ofdrw](https://gitee.com/ofdrw/ofdrw)
+在使用OFDRW前，请务必悉知 [***《OFD Reader & Writer免责声明》***](免责声明.md)！
 
+> 若clone和文档预览存在困难，请移步 [https://gitee.com/ofdrw/ofdrw](https://gitee.com/ofdrw/ofdrw)
 
 **Talk is cheap,Show me the code. ——Linus Torvalds**
 
-**像写HTML和Word那样简单的编写OFD。**
+<p align="center">
+  <img width="275" height="275" src="./img/icon2.png">
+</p>
+
+OFD Reader & Writer 开源的OFD处理库，支持文档生成、数字签名、文档保护、文档合并、转换等功能。
+
+本项目采用Apache 2.0许可，请尊重开源项目作者，在软件中附带OFDRW开源软件许可。
 
 根据[《GB/T 33190-2016 电子文件存储与交换格式版式文档》](./GBT_33190-2016_电子文件存储与交换格式版式文档.pdf)标准实现版式文档OFD库（含有书签）。
 
-项目结构：
+项目采用模块管理，各模块如下：
 
 - [**ofdrw-core**](./ofdrw-core) OFD核心API，参考[《GB/T 33190-2016 电子文件存储与交换格式版式文档》](./GBT_33190-2016_电子文件存储与交换格式版式文档.pdf)实现的基础数据结构。
 - [**ofdrw-font**](./ofdrw-font) 生成OFD字体相关。
@@ -24,9 +28,16 @@
 - [**ofdrw-reader**](./ofdrw-reader) OFD文档解析器，用于OFD的反序列化以及签名签章。
 - [**ofdrw-sign**](./ofdrw-sign) OFD文档数字签章。
 - [**ofdrw-gm**](./ofdrw-gm) 用于支持签章模块需要的国密电子签章数据结构。
+- [**ofrw-crypto**](./ofdrw-crypto) 用于实现《GM/T 0099-2020 开放版式文档密码应用技术规范》对OFD的密码相关功能。
 - [**ofdrw-gv**](./ofdrw-gv) OFDRW 所有模块所共用的全局变量。
 - [**ofdrw-converter**](./ofdrw-converter) OFD文档转换PDF、图片、SVG、HTML。
+- [**ofdrw-tool**](./ofdrw-tool) OFD文档工具，文档合并、裁剪、重组。
 - [**ofdrw-full**](./ofdrw-full) 上述所有模块整合包，用于简化依赖引入。
+
+注：
+
+- 您可以根据需求裁剪模块优化程序体积。
+- 您可以仅引用`ofdrw-core`中定义的数据结来构建属于您自己的OFD库。
 
 ## QuickStart
 
@@ -35,13 +46,14 @@
 <dependency>
   <groupId>org.ofdrw</groupId>
   <artifactId>ofdrw-full</artifactId>
-  <version>1.11.2</version>
+  <version>1.20.1</version>
 </dependency>
 ```
 
-如何生成一份OFD文档？
+> OFDRW 将持续保证API的向下兼容，您可以放心的升级OFDRW库至最新版本。
 
-> 如何把大象放入冰箱。
+如何生成一份OFD文档，如何把大象放入冰箱？
+
 
 ```java
 public class HelloWorld {
@@ -65,7 +77,7 @@ public class HelloWorld {
 - [Canvas示例](./ofdrw-layout/src/test/java/org/ofdrw/layout/element/canvas/DrawContextTest.java)
 - [文字抽取示例](./ofdrw-reader/src/test/java/org/ofdrw/reader/ContentExtractorTest.java)
 - [水印示例](./ofdrw-layout/src/test/java/org/ofdrw/layout/cases/watermark/WatermarkTest.java)
-- [段落布局示例](./ofdrw-layout/src/test/java/org/ofdrw/layout/cases/content/ParagraphCase.java)
+- [段落布局示例](./ofdrw-layout/src/test/java/org/ofdrw/layout/ParagraphLayoutDemo.java)
 - [数字签名清理示例](./ofdrw-sign/src/test/java/org/ofdrw/sign/SignCleanerTest.java)
 - [文档编辑示例](./ofdrw-layout/src/test/java/org/ofdrw/layout/DocEditDemos.java)
 
@@ -74,25 +86,27 @@ public class HelloWorld {
 - [OFD R&W 布局设计](./ofdrw-layout/doc/README.md)
 - [OFD R&W Canvas](./ofdrw-layout/doc/canvas/README.md)
 - [OFD R&W 签名签章快速入门](./ofdrw-sign/doc/quickstart/README.md)
+- [OFD R&W 加密 完整性保护协议](./ofdrw-crypto/README.md)
 - [OFD R&W OFD转换PDF](./ofdrw-converter/README.md)
 - [OFD R&W OFD转换图片](./ofdrw-converter/README.md)
 - [OFD R&W OFD转换SVG](./ofdrw-converter/README.md)
 - [OFD R&W OFD转换HTML](./ofdrw-converter/README.md)
+- [OFD R&W 字形数据解析](./ofdrw-converter/src/main/java/org/ofdrw/converter/font/README.md)
+- [OFD R&W 文档合并](./ofdrw-tool/README.md)
+
 
 OFD阅读器客户端: [数科阅读器 . http://www.suwell.cn/](http://www.suwell.cn/)
 
-### 推荐解决方案
+### 社区解决方案
 
-#### HTML预览
+#### HTML5
 
-**DLTech21/ofd.js**
+HTML5前端预览解决方案： [DLTech21/ofd.js . https://github.com/DLTech21/ofd.js](https://github.com/DLTech21/ofd.js)
 
-![ofd.js](https://raw.githubusercontent.com/DLTech21/ofd.js/master/ofd.jpg)
-
-推荐开源的OFD在线预览解决方案： [DLTech21/ofd.js . https://github.com/DLTech21/ofd.js](https://github.com/DLTech21/ofd.js)
-
-- 将OFD渲染为SVG实现矢量的无失真的OFD预览体验。
-- 完全基于浏览器在前端完成所有渲染工作，不需要服务端支持和插件。
+- `jszip`解压。
+- `fast-xml-parser`解析xml为json数据。
+- `svg`及`canvas`渲染实现。
+- 完全浏览器OFD页面渲染。
 
 #### 开源客户端
 
@@ -116,7 +130,10 @@ OFD Reader and Writer 安卓平台解决方案： [DLTech21/ofdrw-aar . https://
 
 ## 源码安装
 
-在项目根目录下运行
+
+> 支持 ***JDK 1.8*** 及以上版本构建。
+
+在项目根目录下运行：
 
 ```bash
 mvn install
@@ -124,18 +141,27 @@ mvn install
 
 就可以完成项目的构建打包，安装到本地Maven仓库中。
 
-## 交流
+## 社区交流
 
 ***Share and Communicate***
 
-为了方便大家的交流提供QQ群
+<p align="center">
+  <img width="150" height="150" src="./img/comm.png">
+</p>
+为方便社区建设与交流，提供社区QQ群： 
 
-> - 01群号： **577682453** *（满）*
-> - 02群号： **745517934**
+- 04群号： **690642037** *（新）*
+- 03群号： **717320255** *（满）*
+- 02群号： **745517934** *（满）*
+- 01群号： **577682453** *（满）*
 
-![QQ群](./img/QQLink.png)
+<p align="center">
+  <img  width="375" height="672" src="./img/QQLink.png">
+</p>
 
-如果各位对 OFD R&W 有 **问题** 或是 **建议** 可以提交issue和PullRequest，欢迎进群交流。
+
+> - 若您遇到与OFD相关的技术问题，欢迎进群交流!
+> - 若您对项目有建设性意见或方案欢迎提交**Issue**与**PR**。
 
 ## 参与贡献
 
